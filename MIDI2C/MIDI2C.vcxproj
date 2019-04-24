@@ -82,7 +82,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>鼓机音源合成</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -210,6 +210,8 @@
     <None Include="res\MIDI2C.rc2" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="res\drum.ico" />
+    <Image Include="res\icon2.ico" />
     <Image Include="res\MIDI2C.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -31,8 +31,6 @@ typedef struct
 
 T_threadParamCreateFile threadParamCreateFile;
 
-bool addMapInfo;
-
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
@@ -82,7 +80,6 @@ void CMIDI2CDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LISTFILE, m_CtrlList);
-	DDX_Control(pDX, IDC_CHECK_ADDMAP, check_box);
 }
 
 BEGIN_MESSAGE_MAP(CMIDI2CDlg, CDialogEx)
@@ -95,8 +92,6 @@ BEGIN_MESSAGE_MAP(CMIDI2CDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUADDFILE, &CMIDI2CDlg::OnBnClickedBuaddfile)
 	ON_BN_CLICKED(IDC_BUCLEARLIST, &CMIDI2CDlg::OnBnClickedBuclearlist)
 	ON_MESSAGE(WM_MYMSG, OnUserThreadend)
-	ON_BN_CLICKED(IDC_CHECK_ADDMAP, &CMIDI2CDlg::OnBnClickedCheckAddmap)
-	ON_BN_CLICKED(IDC_CHECK_CREAD_C, &CMIDI2CDlg::OnBnClickedCheckCreadC)
 END_MESSAGE_MAP()
 
 
@@ -177,7 +172,7 @@ BOOL CMIDI2CDlg::OnInitDialog()
 	mRadioBu = (CButton *)GetDlgItem(IDC_RADIO_24);
 	mRadioBu->SetCheck(FALSE);
 
-	addMapInfo = 0;
+	((CButton*)(GetDlgItem(IDC_CHECK_ADDMAP)))->SetCheck(1);
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -485,7 +480,7 @@ void CMIDI2CDlg::OnBnClickedBuclearlist()
 
 #define DRUM_OUT_FILE_NAME	"drum_sound_info.h"
 #define DRUM_OUT_FILE_END	"#endif\r\n"
-#define STR_LINEFEED	_T("\r\n")
+#define STR_LINEFEED		"\r\n"
 #define STR_LINEFEED_SIZE	(sizeof(STR_LINEFEED) - 1)
 
 
@@ -502,7 +497,7 @@ UINT CMIDI2CDlg::CreateFile(LPVOID lParam)
 	UINT32    ChunkID, ChunkSize, Format, SubchunkID, SubchunkSize, SampleRate, ByteRate;
 	UINT16    PCMFormat, NumChannels, BlockAlign, BitsPerSample;
 	BOOL      brn;
-	UINT32    dataAddr;
+	UINT32    dataAddr,addrInfoIndex,dataWriteIndex;
 	CFile     binFile, wavFile, mapFile,datFile;
 	CString   str,str2,arrLen,extFileName;
 	UINT32    sample;
@@ -512,7 +507,8 @@ UINT CMIDI2CDlg::CreateFile(LPVOID lParam)
 	
 	::PostMessage(::AfxGetMainWnd()->m_hWnd, WM_MYMSG, WM_MYMSG_CREATE_START, 0);
 
-	bool creatCfile = ((CButton*)myDlg->GetDlgItem(IDC_CHECK_ADDMAP))->GetCheck();
+	int creatCfile = ((CButton*)myDlg->GetDlgItem(IDC_CHECK_CREAD_C))->GetCheck();
+	int addMapInfoToBin = ((CButton*)myDlg->GetDlgItem(IDC_CHECK_ADDMAP))->GetCheck();
 
 	mList = (CListCtrl *)myDlg->GetDlgItem(IDC_LISTFILE);
 	mStatic = (CStatic *)myDlg->GetDlgItem(IDC_STATIC);
@@ -521,12 +517,10 @@ UINT CMIDI2CDlg::CreateFile(LPVOID lParam)
 	int sel = mBox->GetCurSel();
 	mBox->GetLBText(sel, str);
 	sample = atoi(str.GetBuffer());
-
-	if (addMapInfo)
+	if (creatCfile)
 	{
-
+		addMapInfoToBin = 0;
 	}
-
 
 	sbit = 24;
 	if (mRadioBu->GetCheck() > 0)
@@ -540,32 +534,46 @@ UINT CMIDI2CDlg::CreateFile(LPVOID lParam)
 		AfxMessageBox(_T("无文件"),MB_ICONERROR);
 		goto __LAB_EXIT;
 	}
-	
-	str = param->outPath + _T("\\SoundSource.bin");
-	brn = binFile.Open(str, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
-	if (!brn)
+	if (!creatCfile)
 	{
-		AfxMessageBox(_T("无法创建输出文件"), MB_ICONERROR);
-		goto __LAB_EXIT;
+		str = param->outPath + _T("\\drum_sound.bin");
+		brn = binFile.Open(str, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
+		if (!brn)
+		{
+			AfxMessageBox(_T("无法创建输出文件"), MB_ICONERROR);
+			goto __LAB_EXIT;
+		}
 	}
-	str = param->outPath + _T("\\") + _T(DRUM_OUT_FILE_NAME);
-	brn = mapFile.Open(str, CFile::modeCreate | CFile::modeWrite);
-	if (!brn)
+	if (!addMapInfoToBin && !creatCfile)
 	{
-		AfxMessageBox(_T("无法创建map输出文件"), MB_ICONERROR);
-		goto __LAB_EXIT;
-	}
+		str = param->outPath + _T("\\") + _T(DRUM_OUT_FILE_NAME);
+		brn = mapFile.Open(str, CFile::modeCreate | CFile::modeWrite);
+		if (!brn)
+		{
+			AfxMessageBox(_T("无法创建map输出文件"), MB_ICONERROR);
+			goto __LAB_EXIT;
+		}
 
-	str.Format(_T("#ifndef __DRUM_SOUND_INFO_H\r\n#define __DRUM_SOUND_INFO_H\r\n\r\n#define DRUM_SOUND_SOURCE_MAX %d"),totalFile);
-	mapFile.Write(str.GetBuffer(), str.GetLength());
-	str.Empty();
-	str.Format(_T("\r\n\r\nconst unsigned long soundSourceAddr[SOUNDSOURCE_MAX][4]=\r\n{\r\n"));
-	mapFile.Write(str.GetBuffer(), str.GetLength());
+		str.Format(_T("#ifndef __DRUM_SOUND_INFO_H\r\n#define __DRUM_SOUND_INFO_H\r\n\r\n#define DRUM_SOUND_SOURCE_INFO_FOR_FILE\r\n#define DRUM_SOUND_SOURCE_MAX\t\t%d"), totalFile);
+		mapFile.Write(str.GetBuffer(), str.GetLength());
+		str.Empty();
+		str.Format(_T("\r\n\r\nconst unsigned long soundSourceAddr[DRUM_SOUND_SOURCE_MAX][4]=\r\n{\r\n"));
+		mapFile.Write(str.GetBuffer(), str.GetLength());
+	}
 	str.Empty();
 	cnt = 0;
 	dataAddr = 0;
 	arrLen.Empty();
 	extFileName.Empty();
+	dataWriteIndex = 0;
+	if (addMapInfoToBin)
+	{
+		binFile.Write(&totalFile, 4);
+		addrInfoIndex = 4;
+		//binFile.Seek((totalFile+1) * 12, SEEK_CUR);
+		dataWriteIndex = addrInfoIndex + ((totalFile + 1) * 12);
+	}
+
 	while (totalFile)
 	{
 		CString fPath;
@@ -650,57 +658,7 @@ UINT CMIDI2CDlg::CreateFile(LPVOID lParam)
 					INT16    *pIn,*pOut;
 
 					dataCount = 0;
-					while (1)
-					{
-						wavFile.Read((UINT8 *)(&param->dataBuff[0]), SubchunkSize);
-						if (NumChannels == 1)
-						{
-							binFile.Write((UINT8 *)(&param->dataBuff[0]), SubchunkSize);
-							if (creatCfile)
-							{
-								pIn = (INT16*)(&param->dataBuff[0]);
-								UINT32 sampLen;
-								if (sbit == 16)
-								{
-									sampLen = SubchunkSize / 2;
-									str.Format(_T("%d\r\n"), sampLen);
-									arrLen += str;
-									for (UINT32 n = 0; n < sampLen; n++)
-									{
-										str.Format(_T("%d,\r\n"), *pIn++);
-										datFile.Write(str, str.GetLength());
-									}
-									str = _T("};\r\n");
-									datFile.Write(str, str.GetLength());
-								}
-								else if (sbit == 24)
-								{
-
-								}
-							}
-						}
-						else
-						{
-							if (creatCfile)
-							{
-								pIn = (INT16*)(&param->dataBuff[0]);
-								pOut = (INT16*)(&param->dataBuffOut[0]);
-								str.Format(_T("%d\r\n"), SubchunkSize / NumChannels);
-								arrLen += str;
-								for (UINT32 i = 0; i < (SubchunkSize / NumChannels); i++)
-								{
-									pOut[i] = *pIn;
-									str.Format(_T("%d,\r\n"), *pIn);
-									datFile.Write(str, str.GetLength());
-									pIn += 2;
-								}
-								str = _T("};\r\n");
-								datFile.Write(str, str.GetLength());
-							}
-							binFile.Write((UINT8 *)(&param->dataBuffOut[0]), SubchunkSize / NumChannels);
-						}
-						break;
-					}
+					//写入位置、长度信息
 					dataCount = SubchunkSize / NumChannels;
 					str = wavFile.GetFileName();
 					char buf[256], buf1[256];
@@ -732,9 +690,89 @@ UINT CMIDI2CDlg::CreateFile(LPVOID lParam)
 						buf1[0] = _T('0');
 						buf1[1] = 0;
 					}
-					str.Format(_T("%s,%s,0x%x,0x%x,\r\n"), buf, buf1, dataAddr, dataCount);
-					mapFile.Write(str.GetBuffer(), str.GetLength());
-					dataAddr += dataCount;
+					
+					if (addMapInfoToBin)
+					{
+						binFile.Seek(addrInfoIndex, SEEK_SET);
+						UINT16 k = (UINT16)atoi(buf);
+						UINT16 l = (UINT16)atoi(buf1);
+						dataAddr = dataWriteIndex;
+						binFile.Write(&k, 2);
+						binFile.Write(&l, 2);
+						binFile.Write(&dataAddr, 4);
+						binFile.Write(&dataCount, 4);
+						addrInfoIndex = binFile.GetPosition();
+					}
+					else if(!creatCfile)
+					{
+						str.Format(_T("%s,%s,0x%x,0x%x,\r\n"), buf/*音源码*/, buf1/*力度*/, dataAddr/*地址*/, dataCount/*字节长度*/);
+						mapFile.Write(str.GetBuffer(), str.GetLength());
+						dataAddr += dataCount;
+					}
+					
+					//写入数据
+					wavFile.Read((UINT8 *)(&param->dataBuff[0]), SubchunkSize);
+					if (NumChannels == 1)
+					{
+						if (creatCfile)
+						{
+							pIn = (INT16*)(&param->dataBuff[0]);
+							UINT32 sampLen;
+							if (sbit == 16)
+							{
+								sampLen = SubchunkSize / 2;
+								str.Format(_T("%d\r\n"), sampLen);
+								arrLen += str;
+								for (UINT32 n = 0; n < sampLen; n++)
+								{
+									str.Format(_T("%d,\r\n"), *pIn++);
+									datFile.Write(str, str.GetLength());
+								}
+								str = _T("};\r\n");
+								datFile.Write(str, str.GetLength());
+							}
+							else if (sbit == 24)
+							{
+
+							}
+						}
+						else
+						{
+							binFile.Seek(dataWriteIndex, SEEK_SET);
+							binFile.Write((UINT8*)(&param->dataBuff[0]), SubchunkSize);
+							dataWriteIndex = binFile.GetPosition();
+						}
+					}
+					else
+					{
+						pIn = (INT16*)(&param->dataBuff[0]);
+						pOut = (INT16*)(&param->dataBuffOut[0]);
+						if (creatCfile)
+						{
+							str.Format(_T("%d\r\n"), SubchunkSize / NumChannels);
+							arrLen += str;
+							for (UINT32 i = 0; i < (SubchunkSize / NumChannels); i++)
+							{
+								pOut[i] = *pIn;
+								str.Format(_T("%d,\r\n"), *pIn);
+								datFile.Write(str, str.GetLength());
+								pIn += 2;
+							}
+							str = _T("};\r\n");
+							datFile.Write(str, str.GetLength());
+						}
+						else
+						{
+							for (UINT32 i = 0; i < (SubchunkSize / NumChannels); i++)
+							{
+								pOut[i] = *pIn;
+								pIn += 2;
+							}
+							binFile.Seek(dataWriteIndex, SEEK_SET);
+							binFile.Write((UINT8*)(&param->dataBuffOut[0]), SubchunkSize / NumChannels);
+							dataWriteIndex = binFile.GetPosition();
+						}
+					}
 					break;
 				}
 				else
@@ -759,15 +797,19 @@ UINT CMIDI2CDlg::CreateFile(LPVOID lParam)
 		}
 		Sleep(5);
 	}
-	//binFile.Seek(0, SEEK_SET);
-	//binFile.Write(param->headBuff, BIN_FILE_HEAD_LEN);//写入一个头信息
-	param->binLength = binFile.GetLength();
-	binFile.Close();
-	str = _T("};\r\n");
-	mapFile.Write(str.GetBuffer(), str.GetLength());
-	mapFile.Write(DRUM_OUT_FILE_END,sizeof(DRUM_OUT_FILE_END)-1);
-	mapFile.Write(STR_LINEFEED, STR_LINEFEED_SIZE);
-	mapFile.Close();
+	if (!creatCfile)
+	{
+		param->binLength = binFile.GetLength();
+		binFile.Close();
+	}
+	if (!addMapInfoToBin && !creatCfile)
+	{
+		str = _T("};\r\n");
+		mapFile.Write(str.GetBuffer(), str.GetLength());
+		mapFile.Write(DRUM_OUT_FILE_END, sizeof(DRUM_OUT_FILE_END) - 1);
+		mapFile.Write(_T(STR_LINEFEED), STR_LINEFEED_SIZE);
+		mapFile.Close();
+	}
 
 	if (creatCfile)
 	{
@@ -846,6 +888,7 @@ void CMIDI2CDlg::DlgCtrlEnable(BOOL enable)
 	GetDlgItem(IDC_RADIO_16)->EnableWindow(enable);
 	GetDlgItem(IDC_RADIO_24)->EnableWindow(enable);
 	GetDlgItem(IDC_CHECK_ADDMAP)->EnableWindow(enable);
+	GetDlgItem(IDC_CHECK_CREAD_C)->EnableWindow(enable);
 	//GetDlgItem(IDC_LISTFILE)->EnableWindow(enable);
 }
 
@@ -869,31 +912,3 @@ void CMIDI2CDlg::ViewLastError(LPTSTR lpMsg)
 	LocalFree(lpMsgBuf);
 }
 
-void CMIDI2CDlg::OnBnClickedCheckAddmap()
-{
-	// TODO: 在此添加控件通知处理程序代码
-
-	if(check_box.GetCheck())
-	{
-		addMapInfo = 1;
-	}
-	else
-	{
-		addMapInfo = 0;
-	}
-
-	
-}
-
-
-
-
-void CMIDI2CDlg::OnBnClickedCheckCreadC()
-{
-	// TODO: 在此添加控件通知处理程序代码
-	CButton* cb;
-	cb = (CButton*)GetDlgItem(IDC_CHECK_ADDMAP);
-	cb->GetCheck();
-
-	
-}

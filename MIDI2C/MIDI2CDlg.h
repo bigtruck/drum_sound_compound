@@ -51,7 +51,4 @@ public:
 
 	void ViewLastError(LPTSTR lpMsg);
 	
-	afx_msg void OnBnClickedCheckAddmap();
-	CButton check_box;
-	afx_msg void OnBnClickedCheckCreadC();
 };
